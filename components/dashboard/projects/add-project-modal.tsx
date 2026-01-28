@@ -118,7 +118,7 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-white/10">
+        <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-black/70">
           <div>
             <h2 className="text-2xl font-bold text-white">Add New Project</h2>
             <p className="text-slate-200 text-sm">Enter the client's information to add new projects</p>

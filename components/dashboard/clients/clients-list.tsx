@@ -1,10 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import { Edit, Trash2, Eye } from "lucide-react";
-import { clientsAPI } from "@/lib/api";
-import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 
 interface Client {
@@ -20,22 +16,17 @@ interface Client {
   createdAt: string;
 }
 
-export default function ClientsList({ clients }: { clients: Client[] }) {
-  const queryClient = useQueryClient();
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => clientsAPI.delete(id),
-    onSuccess: () => {
-      toast.success("Client deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["clients"] });
-      setDeleteId(null);
-    },
-    onError: () => {
-      toast.error("Failed to delete client");
-    },
-  });
-
+export default function ClientsList({
+  clients,
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  clients: Client[];
+  onView: (id: string) => void;
+  onEdit: (client: Client) => void;
+  onDelete: (id: string) => void;
+}) {
   return (
     <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5 backdrop-blur-md">
       <div className="overflow-x-auto">
@@ -99,20 +90,20 @@ export default function ClientsList({ clients }: { clients: Client[] }) {
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <button className="p-2 text-slate-400 hover:bg-slate-700 rounded transition">
+                    <button
+                      onClick={() => onView(client._id)}
+                      className="p-2 text-slate-400 hover:bg-slate-700 rounded transition"
+                    >
                       <Eye className="w-4 h-4" />
                     </button>
-                    <button className="p-2 text-slate-400 hover:bg-slate-700 rounded transition">
+                    <button
+                      onClick={() => onEdit(client)}
+                      className="p-2 text-slate-400 hover:bg-slate-700 rounded transition"
+                    >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (deleteId === client._id) {
-                          deleteMutation.mutate(client._id);
-                        } else {
-                          setDeleteId(client._id);
-                        }
-                      }}
+                      onClick={() => onDelete(client._id)}
                       className="p-2 text-red-400 hover:bg-red-500/10 rounded transition"
                     >
                       <Trash2 className="w-4 h-4" />

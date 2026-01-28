@@ -80,12 +80,26 @@ export const dashboardAPI = {
 
 // Projects
 export const projectsAPI = {
-  getAll: (search?: string) =>
-    getAxiosInstance().get("/api/projects", { params: search ? { search } : {} }),
+  getAll: (params?: string | { search?: string; clientId?: string }) => {
+    const query =
+      typeof params === "string" ? { search: params } : params || {};
+    return getAxiosInstance().get("/api/projects", { params: query });
+  },
   getById: (id: string) => getAxiosInstance().get(`/api/projects/${id}`),
-  create: (data: any) => getAxiosInstance().post("/api/projects", data),
+  create: (data: any) =>
+    getAxiosInstance().post("/api/projects", data, {
+      headers:
+        data instanceof FormData
+          ? { "Content-Type": "multipart/form-data" }
+          : undefined,
+    }),
   update: (id: string, data: any) =>
-    getAxiosInstance().put(`/api/projects/${id}`, data),
+    getAxiosInstance().put(`/api/projects/${id}`, data, {
+      headers:
+        data instanceof FormData
+          ? { "Content-Type": "multipart/form-data" }
+          : undefined,
+    }),
   delete: (id: string) => getAxiosInstance().delete(`/api/projects/${id}`),
   getTasks: (projectId?: string) =>
     getAxiosInstance().get("/api/tasks", {
@@ -139,8 +153,11 @@ export const teamMembersAPI = {
 
 // Finance
 export const financeAPI = {
-  getAll: (type?: string) =>
-    getAxiosInstance().get("/api/finance", { params: type ? { type } : {} }),
+  getAll: (params?: string | { type?: string; clientId?: string; projectId?: string }) => {
+    const query =
+      typeof params === "string" ? { type: params } : params || {};
+    return getAxiosInstance().get("/api/finance", { params: query });
+  },
   getById: (id: string) => getAxiosInstance().get(`/api/finance/${id}`),
   create: (data: any) => getAxiosInstance().post("/api/finance", data),
   update: (id: string, data: any) =>

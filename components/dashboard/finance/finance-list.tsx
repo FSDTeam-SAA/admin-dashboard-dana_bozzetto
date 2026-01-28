@@ -1,7 +1,7 @@
 // components/dashboard/finance/finance-list.tsx
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Edit, Eye, Trash2 } from "lucide-react";
 import type { FinanceType } from "@/app/dashboard/finance/page"; // adjust path if needed
 
 interface Finance {
@@ -12,16 +12,28 @@ interface Finance {
   totalAmount: number;
   status: string;
   issueDate: string;
+  lineItems?: {
+    description: string;
+    quantity: number;
+    rate: number;
+    amount: number;
+  }[];
 }
 
 export default function FinanceList({
   finances,
   type,
   idLabel,
+  onView,
+  onEdit,
+  onDelete,
 }: {
   finances: Finance[];
   type: FinanceType;
   idLabel: string;
+  onView: (id: string) => void;
+  onEdit: (finance: Finance) => void;
+  onDelete: (id: string) => void;
 }) {
   const getStatusStyles = (status: string) => {
     switch ((status || "").toLowerCase()) {
@@ -57,13 +69,13 @@ export default function FinanceList({
                 className="hover:bg-white/5 transition-colors"
               >
                 <td className="px-6 py-4 text-slate-200/80">
-                  {f.customId ?? "—"}
+                  {f.customId ?? "-"}
                 </td>
                 <td className="px-6 py-4 text-slate-200/70">
-                  {f.client?.name ?? "—"}
+                  {f.client?.name ?? "-"}
                 </td>
                 <td className="px-6 py-4 text-slate-200/70">
-                  {f.project?.name ?? "—"}
+                  {f.project?.name ?? "-"}
                 </td>
                 <td className="px-6 py-4 text-slate-100 font-semibold">
                   ${Number(f.totalAmount ?? 0).toLocaleString()}
@@ -74,7 +86,7 @@ export default function FinanceList({
                       f.status
                     )}`}
                   >
-                    {f.status || "—"}
+                    {f.status || "-"}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-slate-200/70">
@@ -84,15 +96,32 @@ export default function FinanceList({
                         day: "numeric",
                         year: "numeric",
                       })
-                    : "—"}
+                    : "-"}
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <Button
-                    variant="ghost"
-                    className="bg-white/10 hover:bg-white/15 text-teal-200 border-none h-8 px-5 rounded-md text-xs transition-all"
-                  >
-                    View Details
-                  </Button>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => onView(f._id)}
+                      className="p-2 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 rounded"
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onEdit(f)}
+                      className="p-2 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 rounded"
+                      title="Edit"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onDelete(f._id)}
+                      className="p-2 text-red-300 hover:text-red-200 bg-white/10 hover:bg-red-500/20 rounded"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -113,3 +142,5 @@ export default function FinanceList({
     </div>
   );
 }
+
+

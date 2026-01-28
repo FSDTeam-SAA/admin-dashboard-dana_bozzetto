@@ -135,7 +135,7 @@ export default function ProjectDetailsModal({ isOpen, onClose, projectId }: Proj
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="bg-white/10 backdrop-blur-2xl border border-white/20 text-white max-w-6xl">
+      <DialogContent className="bg-white/10 backdrop-blur-2xl border border-white/20 text-white sm:max-w-6xl">
         <DialogHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -614,7 +614,7 @@ function UploadDocumentsModal({
             <select
               value={milestoneId}
               onChange={(e) => setMilestoneId(e.target.value)}
-              className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-3 py-2"
+              className="w-full bg-black/40 border border-white/20 text-white rounded-xl px-3 py-2"
             >
               {milestones.map((m) => (
                 <option key={m._id} value={m._id}>

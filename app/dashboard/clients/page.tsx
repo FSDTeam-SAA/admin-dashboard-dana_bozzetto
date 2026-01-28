@@ -1,15 +1,19 @@
 ﻿"use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clientsAPI } from "@/lib/api";
 import ClientsList from "@/components/dashboard/clients/clients-list";
 import AddClientModal from "@/components/dashboard/clients/add-client-modal";
+import EditClientModal from "@/components/dashboard/clients/edit-client-modal";
+import ClientDetailsModal from "@/components/dashboard/clients/client-details-modal";
 import Pagination from "@/components/dashboard/pagination";
 import ClientsTableSkeleton from "@/components/dashboard/skeletons/clients-skeleton";
 import { Button } from "@/components/ui/button";
 import { Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import DeleteConfirmDialog from "@/components/dashboard/delete-confirm-dialog";
+import { toast } from "sonner";
 
 type Client = {
   _id: string;
@@ -18,14 +22,19 @@ type Client = {
   clientId?: string;
   companyName?: string;
   phoneNumber?: string;
+  address?: string;
   avatar?: { url?: string };
   createdAt: string;
 };
 
 export default function ClientsPage() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [viewClientId, setViewClientId] = useState<string | null>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
   const limit = 10;
 
   const { data, isLoading, error } = useQuery({
@@ -47,6 +56,18 @@ export default function ClientsPage() {
 
   const totalPages = Math.max(1, Math.ceil((filteredClients.length || 0) / limit));
   const clients = filteredClients.slice((page - 1) * limit, page * limit);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => clientsAPI.delete(id),
+    onSuccess: () => {
+      toast.success("Client deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      setDeletingClientId(null);
+    },
+    onError: () => {
+      toast.error("Failed to delete client");
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -90,7 +111,12 @@ export default function ClientsPage() {
         </div>
       ) : (
         <>
-          <ClientsList clients={clients} />
+          <ClientsList
+            clients={clients}
+            onView={(id) => setViewClientId(id)}
+            onEdit={(client) => setEditingClient(client)}
+            onDelete={(id) => setDeletingClientId(id)}
+          />
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
@@ -99,6 +125,29 @@ export default function ClientsPage() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
       />
+
+      <EditClientModal
+        isOpen={!!editingClient}
+        onClose={() => setEditingClient(null)}
+        client={editingClient}
+      />
+
+      <ClientDetailsModal
+        isOpen={!!viewClientId}
+        onClose={() => setViewClientId(null)}
+        clientId={viewClientId}
+      />
+
+      {deletingClientId && (
+        <DeleteConfirmDialog
+          isOpen={!!deletingClientId}
+          title="Delete Client"
+          description="Are you sure you want to delete this client? This action cannot be undone."
+          onConfirm={() => deleteMutation.mutate(deletingClientId)}
+          onCancel={() => setDeletingClientId(null)}
+          isLoading={deleteMutation.isPending}
+        />
+      )}
     </div>
   );
 }

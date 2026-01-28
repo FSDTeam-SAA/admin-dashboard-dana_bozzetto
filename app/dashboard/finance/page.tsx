@@ -2,13 +2,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { financeAPI } from "@/lib/api";
 
 import FinanceList from "@/components/dashboard/finance/finance-list";
 import AddFinanceModal from "@/components/dashboard/finance/add-finance-modal";
+import EditFinanceModal from "@/components/dashboard/finance/edit-finance-modal";
+import FinanceDetailsModal from "@/components/dashboard/finance/finance-details-modal";
 import Pagination from "@/components/dashboard/pagination";
 import FinanceTableSkeleton from "@/components/dashboard/skeletons/finance-skeleton";
+import DeleteConfirmDialog from "@/components/dashboard/delete-confirm-dialog";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,8 +34,8 @@ const types: FinanceType[] = ["proposal", "estimate", "invoice", "contract"];
 const tabToType: Record<FinanceType, string> = {
   proposal: "Proposal",
   estimate: "Estimate",
-  invoice: "Invoices",
-  contract: "Contracts",
+  invoice: "Invoice",
+  contract: "Contract",
 };
 
 const typeToCreateLabel: Record<FinanceType, string> = {
@@ -56,10 +60,14 @@ const typeToIcon: Record<FinanceType, React.ElementType> = {
 };
 
 export default function FinancePage() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<FinanceType>("proposal");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [viewFinanceId, setViewFinanceId] = useState<string | null>(null);
+  const [editingFinance, setEditingFinance] = useState<any | null>(null);
+  const [deletingFinanceId, setDeletingFinanceId] = useState<string | null>(null);
 
   const limit = 8;
 
@@ -113,8 +121,20 @@ export default function FinancePage() {
     page * limit,
   );
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => financeAPI.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["finance"] });
+      queryClient.invalidateQueries({ queryKey: ["finance-count"] });
+      setDeletingFinanceId(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to delete record");
+    },
+  });
+
   return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+    <div className="p-8 space-y-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
@@ -206,6 +226,9 @@ export default function FinancePage() {
                     finances={paginatedFinances}
                     type={activeTab}
                     idLabel={typeToIdLabel[activeTab]}
+                    onView={(id) => setViewFinanceId(id)}
+                    onEdit={(finance) => setEditingFinance(finance)}
+                    onDelete={(id) => setDeletingFinanceId(id)}
                   />
 
                   <div className="flex justify-end">
@@ -227,6 +250,29 @@ export default function FinancePage() {
         onClose={() => setIsAddModalOpen(false)}
         type={activeTab}
       />
+
+      <EditFinanceModal
+        isOpen={!!editingFinance}
+        onClose={() => setEditingFinance(null)}
+        finance={editingFinance}
+      />
+
+      <FinanceDetailsModal
+        isOpen={!!viewFinanceId}
+        onClose={() => setViewFinanceId(null)}
+        financeId={viewFinanceId}
+      />
+
+      {deletingFinanceId && (
+        <DeleteConfirmDialog
+          isOpen={!!deletingFinanceId}
+          title="Delete Record"
+          description="Are you sure you want to delete this finance record? This action cannot be undone."
+          onConfirm={() => deleteMutation.mutate(deletingFinanceId)}
+          onCancel={() => setDeletingFinanceId(null)}
+          isLoading={deleteMutation.isPending}
+        />
+      )}
     </div>
   );
 }
