@@ -225,20 +225,20 @@ export default function ProjectDetailsModal({ isOpen, onClose, projectId }: Proj
                   <div className="text-slate-300">No team members assigned.</div>
                 ) : (
                   <div className="space-y-2">
-                    {data.teamMembers?.map((member) => (
+                    {data.teamMembers?.map((member, index) => (
                       <div
-                        key={member.user._id}
+                        key={member?.user?._id || `member-${index}`}
                         className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3"
                       >
                         <div className="flex items-center gap-3">
                           <img
-                            src={member.user.avatar?.url || "/placeholder.svg"}
+                            src={member?.user?.avatar?.url || "/placeholder.svg"}
                             className="w-9 h-9 rounded-full"
-                            alt={member.user.name}
+                            alt={member?.user?.name || "Team member"}
                           />
                           <div>
-                            <p className="font-medium">{member.user.name}</p>
-                            <p className="text-xs text-slate-300">{member.role}</p>
+                            <p className="font-medium">{member?.user?.name || "Unknown member"}</p>
+                            <p className="text-xs text-slate-300">{member?.role || "Member"}</p>
                           </div>
                         </div>
                         <Button

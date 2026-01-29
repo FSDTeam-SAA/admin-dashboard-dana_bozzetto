@@ -1,8 +1,6 @@
 "use client";
 
-import React from "react";
-
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projectsAPI } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -37,6 +35,7 @@ interface EditProjectModalProps {
 
 export default function EditProjectModal({ isOpen, onClose, project }: EditProjectModalProps) {
   const queryClient = useQueryClient();
+
   const [formData, setFormData] = useState({
     projectNo: "",
     name: "",
@@ -46,11 +45,18 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
     description: "",
     status: "Active",
   });
+
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState("");
   const [documents, setDocuments] = useState<File[]>([]);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
+
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
+
+  // ✅ Team member search + dropdown states
+  const [teamSearch, setTeamSearch] = useState("");
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+  const teamBoxRef = useRef<HTMLDivElement | null>(null);
 
   const { data: teamMembersData = [] } = useQuery({
     queryKey: ["team-members", "all"],
@@ -61,6 +67,18 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
     enabled: isOpen,
   });
 
+  // ✅ Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (teamBoxRef.current && !teamBoxRef.current.contains(e.target as Node)) {
+        setShowTeamDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Load project data into form
   useEffect(() => {
     if (project) {
       setFormData({
@@ -72,10 +90,19 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
         description: project.description || "",
         status: project.status || "Active",
       });
+
       setCoverImage(null);
       setCoverPreview(project.coverImage?.url || "");
       setDocuments([]);
-      setSelectedTeamMembers((project.teamMembers || []).map((m) => m.user._id));
+      setSelectedTeamMembers(
+        (project.teamMembers || [])
+          .map((m) => m?.user?._id)
+          .filter((id): id is string => Boolean(id))
+      );
+
+      // reset search UI
+      setTeamSearch("");
+      setShowTeamDropdown(false);
     }
   }, [project]);
 
@@ -94,28 +121,51 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
     setDocuments(files);
   };
 
+  // ✅ Search filter
+  const filteredTeamMembers = useMemo(() => {
+    const q = teamSearch.trim().toLowerCase();
+    if (!q) return teamMembersData;
+    return teamMembersData.filter((m: any) =>
+      String(m?.name || "").toLowerCase().includes(q)
+    );
+  }, [teamMembersData, teamSearch]);
+
+  // ✅ Selected members full objects (for chips below)
+  const selectedMembersFull = useMemo(() => {
+    const map = new Map(teamMembersData.map((m: any) => [m._id, m]));
+    return selectedTeamMembers.map((id) => map.get(id)).filter(Boolean);
+  }, [teamMembersData, selectedTeamMembers]);
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!project) return;
+
       const payload = new FormData();
       Object.entries(formData).forEach(([key, value]) => {
         if (value) payload.append(key, value);
       });
+
       if (selectedTeamMembers.length > 0) {
         payload.append("teamMembers", JSON.stringify(selectedTeamMembers));
       }
+
       if (coverImage) {
         payload.append("coverImage", coverImage);
       }
+
       documents.forEach((file) => payload.append("documents", file));
       return projectsAPI.update(project._id, payload);
     },
     onSuccess: () => {
       toast.success("Project updated successfully");
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+
       setCoverImage(null);
       setCoverPreview("");
       setDocuments([]);
+      setTeamSearch("");
+      setShowTeamDropdown(false);
+
       onClose();
     },
     onError: (error: any) => {
@@ -123,12 +173,23 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
     },
   });
 
-  const isFormValid = useMemo(() => formData.name && formData.budget, [formData]);
+  const isFormValid = useMemo(() => !!(formData.name && formData.budget), [formData]);
 
+  // ✅ Toggle member:
+  // - add -> close dropdown + clear search
+  // - remove -> keep dropdown state unchanged
   const handleTeamMemberToggle = (id: string) => {
-    setSelectedTeamMembers((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+    setSelectedTeamMembers((prev) => {
+      const exists = prev.includes(id);
+      const next = exists ? prev.filter((x) => x !== id) : [...prev, id];
+
+      if (!exists) {
+        setShowTeamDropdown(false);
+        setTeamSearch("");
+      }
+
+      return next;
+    });
   };
 
   if (!isOpen || !project) return null;
@@ -157,6 +218,7 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
           }}
           className="p-6 space-y-6"
         >
+          {/* Cover */}
           <div>
             <label className="block text-slate-200 text-sm font-medium mb-3">
               Update Cover Photo
@@ -185,6 +247,7 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
             </div>
           </div>
 
+          {/* Basic info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-slate-200 text-sm font-medium mb-2">Project Name</label>
@@ -206,6 +269,7 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
             </div>
           </div>
 
+          {/* Budget + status */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-slate-200 text-sm font-medium mb-2">Budget Amount</label>
@@ -231,6 +295,7 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
             </div>
           </div>
 
+          {/* Dates */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-slate-200 text-sm font-medium mb-2">Start Date</label>
@@ -252,6 +317,7 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
             </div>
           </div>
 
+          {/* Description */}
           <div>
             <label className="block text-slate-200 text-sm font-medium mb-2">Description</label>
             <textarea
@@ -262,6 +328,7 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
             />
           </div>
 
+          {/* Upload new docs */}
           <div>
             <label className="block text-slate-200 text-sm font-medium mb-2">
               Upload Additional Documents
@@ -277,6 +344,7 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
             </div>
           </div>
 
+          {/* Existing documents */}
           <div>
             <label className="block text-slate-200 text-sm font-medium mb-2">
               Existing Documents
@@ -289,7 +357,7 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
                     className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3"
                   >
                     <div>
-                      <p className="font-medium">{doc.name}</p>
+                      <p className="font-medium text-white">{doc.name}</p>
                       <p className="text-xs text-slate-300">
                         {(doc.type || "Document")} {doc.status ? `- ${doc.status}` : ""}
                       </p>
@@ -310,30 +378,75 @@ export default function EditProjectModal({ isOpen, onClose, project }: EditProje
             )}
           </div>
 
-          <div>
+          {/* ✅ Assign Team Members (Search dropdown + selected chips below) */}
+          <div ref={teamBoxRef}>
             <label className="block text-slate-200 text-sm font-medium mb-2">
               Assign Team Members
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {teamMembersData.map((member: any) => (
-                <label
-                  key={member._id}
-                  className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-slate-200"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedTeamMembers.includes(member._id)}
-                    onChange={() => handleTeamMemberToggle(member._id)}
-                    className="accent-teal-500"
-                  />
-                  <span>{member.name}</span>
-                </label>
-              ))}
+
+            <div className="relative">
+              <Input
+                value={teamSearch}
+                onChange={(e) => setTeamSearch(e.target.value)}
+                onFocus={() => setShowTeamDropdown(true)}
+                placeholder="Search team members..."
+                className="bg-white/10 border-white/20 text-white placeholder:text-slate-200"
+              />
+
+              {showTeamDropdown && (
+                <div className="absolute left-0 right-0 z-50 mt-2 rounded-xl border border-white/20 bg-black/80 backdrop-blur-xl p-2 max-h-64 overflow-y-auto">
+                  {filteredTeamMembers.length === 0 ? (
+                    <p className="text-slate-300 text-sm px-2 py-2">No members found.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredTeamMembers.map((member: any) => (
+                        <button
+                          key={member._id}
+                          type="button"
+                          onClick={() => handleTeamMemberToggle(member._id)}
+                          className="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10"
+                        >
+                          <span className="truncate">{member.name}</span>
+                          <span className="text-xs text-slate-300">
+                            {selectedTeamMembers.includes(member._id) ? "Selected" : "Select"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {selectedMembersFull.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedMembersFull.map((m: any) => (
+                  <div
+                    key={m._id}
+                    className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-slate-200"
+                  >
+                    <span className="text-sm">{m.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleTeamMemberToggle(m._id)}
+                      className="text-slate-300 hover:text-white"
+                      aria-label={`Remove ${m.name}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
+          {/* Actions */}
           <div className="flex gap-4 pt-2">
-            <Button type="button" onClick={onClose} className="flex-1 bg-white/10 hover:bg-white/20 text-white">
+            <Button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-white/10 hover:bg-white/20 text-white"
+            >
               Cancel
             </Button>
             <Button
@@ -367,6 +480,7 @@ function DocumentPreviewModal({ document, onClose }: { document: any; onClose: (
             <X className="w-5 h-5" />
           </button>
         </div>
+
         <div className="p-6 space-y-4">
           {url ? (
             isImage ? (
@@ -377,6 +491,7 @@ function DocumentPreviewModal({ document, onClose }: { document: any; onClose: (
           ) : (
             <p className="text-slate-300">No document available.</p>
           )}
+
           {url && (
             <a
               href={url}

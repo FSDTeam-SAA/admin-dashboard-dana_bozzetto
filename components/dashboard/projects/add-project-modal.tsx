@@ -1,8 +1,6 @@
 "use client";
 
-import React from "react";
-
-import { useMemo, useState } from "react";
+import React, { useMemo, useRef, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projectsAPI, clientsAPI } from "@/lib/api";
 import { toast } from "sonner";
@@ -17,6 +15,7 @@ interface AddProjectModalProps {
 
 export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
   const queryClient = useQueryClient();
+
   const [formData, setFormData] = useState({
     projectNo: "",
     name: "",
@@ -27,10 +26,27 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
     description: "",
     status: "Active",
   });
+
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState("");
   const [documents, setDocuments] = useState<File[]>([]);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
+
+  // Team member search + dropdown
+  const [teamSearch, setTeamSearch] = useState("");
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+  const teamBoxRef = useRef<HTMLDivElement | null>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (teamBoxRef.current && !teamBoxRef.current.contains(e.target as Node)) {
+        setShowTeamDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const { data: clientsData = [] } = useQuery({
     queryKey: ["clients", "all"],
@@ -48,24 +64,43 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
     },
   });
 
+  const filteredTeamMembers = useMemo(() => {
+    const q = teamSearch.trim().toLowerCase();
+    if (!q) return teamMembersData;
+    return teamMembersData.filter((m: any) =>
+      String(m?.name || "").toLowerCase().includes(q)
+    );
+  }, [teamMembersData, teamSearch]);
+
+  // Selected members full objects (for showing chips below)
+  const selectedMembersFull = useMemo(() => {
+    const map = new Map(teamMembersData.map((m: any) => [m._id, m]));
+    return selectedTeamMembers.map((id) => map.get(id)).filter(Boolean);
+  }, [teamMembersData, selectedTeamMembers]);
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const payload = new FormData();
+
       Object.entries(formData).forEach(([key, value]) => {
         if (value) payload.append(key, value);
       });
+
       if (selectedTeamMembers.length > 0) {
         payload.append("teamMembers", JSON.stringify(selectedTeamMembers));
       }
+
       if (coverImage) {
         payload.append("coverImage", coverImage);
       }
+
       documents.forEach((file) => payload.append("documents", file));
       return projectsAPI.create(payload);
     },
     onSuccess: () => {
       toast.success("Project created successfully");
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+
       setFormData({
         projectNo: "",
         name: "",
@@ -76,10 +111,14 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
         description: "",
         status: "Active",
       });
+
       setCoverImage(null);
       setCoverPreview("");
       setDocuments([]);
       setSelectedTeamMembers([]);
+      setTeamSearch("");
+      setShowTeamDropdown(false);
+
       onClose();
     },
     onError: (error: any) => {
@@ -102,14 +141,24 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
     setDocuments(files);
   };
 
+  // Toggle member + when selecting -> close dropdown + clear search
   const handleTeamMemberToggle = (id: string) => {
-    setSelectedTeamMembers((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+    setSelectedTeamMembers((prev) => {
+      const exists = prev.includes(id);
+      const next = exists ? prev.filter((x) => x !== id) : [...prev, id];
+
+      // If adding (selecting), close dropdown and clear search
+      if (!exists) {
+        setShowTeamDropdown(false);
+        setTeamSearch("");
+      }
+
+      return next;
+    });
   };
 
   const isFormValid = useMemo(
-    () => formData.name && formData.clientId && formData.budget,
+    () => !!(formData.name && formData.clientId && formData.budget),
     [formData]
   );
 
@@ -121,12 +170,11 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
         <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-black/70">
           <div>
             <h2 className="text-2xl font-bold text-white">Add New Project</h2>
-            <p className="text-slate-200 text-sm">Enter the client's information to add new projects</p>
+            <p className="text-slate-200 text-sm">
+              Enter the client's information to add new projects
+            </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-200 hover:text-white rounded"
-          >
+          <button onClick={onClose} className="p-2 text-slate-200 hover:text-white rounded">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -142,6 +190,7 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
           }}
           className="p-6 space-y-6"
         >
+          {/* Cover image */}
           <div>
             <label className="block text-slate-200 text-sm font-medium mb-3">
               Upload Photo
@@ -170,6 +219,7 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
             </div>
           </div>
 
+          {/* Project name + no */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-slate-200 text-sm font-medium mb-2">
@@ -197,6 +247,7 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
             </div>
           </div>
 
+          {/* Client + budget */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-slate-200 text-sm font-medium mb-2">
@@ -229,9 +280,12 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
             </div>
           </div>
 
+          {/* Dates */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-slate-200 text-sm font-medium mb-2">Start Date</label>
+              <label className="block text-slate-200 text-sm font-medium mb-2">
+                Start Date
+              </label>
               <Input
                 type="date"
                 value={formData.startDate}
@@ -240,7 +294,9 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
               />
             </div>
             <div>
-              <label className="block text-slate-200 text-sm font-medium mb-2">End Date</label>
+              <label className="block text-slate-200 text-sm font-medium mb-2">
+                End Date
+              </label>
               <Input
                 type="date"
                 value={formData.endDate}
@@ -250,6 +306,7 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
             </div>
           </div>
 
+          {/* Status */}
           <div>
             <label className="block text-slate-200 text-sm font-medium mb-2">Status</label>
             <select
@@ -264,6 +321,7 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
             </select>
           </div>
 
+          {/* Description */}
           <div>
             <label className="block text-slate-200 text-sm font-medium mb-2">
               Project Description
@@ -277,6 +335,7 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
             />
           </div>
 
+          {/* Documents */}
           <div>
             <label className="block text-slate-200 text-sm font-medium mb-2">
               Upload Initial Documents
@@ -292,28 +351,70 @@ export default function AddProjectModal({ isOpen, onClose }: AddProjectModalProp
             </div>
           </div>
 
-          <div>
+          {/* Assign Team Members (Search dropdown + selected list below) */}
+          <div ref={teamBoxRef}>
             <label className="block text-slate-200 text-sm font-medium mb-2">
               Assign Team Members
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {teamMembersData.map((member: any) => (
-                <label
-                  key={member._id}
-                  className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-slate-200"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedTeamMembers.includes(member._id)}
-                    onChange={() => handleTeamMemberToggle(member._id)}
-                    className="accent-teal-500"
-                  />
-                  <span>{member.name}</span>
-                </label>
-              ))}
+
+            <div className="relative">
+              <Input
+                value={teamSearch}
+                onChange={(e) => setTeamSearch(e.target.value)}
+                onFocus={() => setShowTeamDropdown(true)}
+                placeholder="Search team members..."
+                className="bg-white/10 border-white/20 text-white placeholder:text-slate-200"
+              />
+
+              {showTeamDropdown && (
+                <div className="absolute left-0 right-0 z-50 mt-2 rounded-xl border border-white/20 bg-black/80 backdrop-blur-xl p-2 max-h-64 overflow-y-auto">
+                  {filteredTeamMembers.length === 0 ? (
+                    <p className="text-slate-300 text-sm px-2 py-2">No members found.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredTeamMembers.map((member: any) => (
+                        <button
+                          key={member._id}
+                          type="button"
+                          onClick={() => handleTeamMemberToggle(member._id)}
+                          className="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10"
+                        >
+                          <span className="truncate">{member.name}</span>
+                          <span className="text-xs text-slate-300">
+                            {selectedTeamMembers.includes(member._id) ? "Selected" : "Select"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Selected members below */}
+            {selectedMembersFull.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedMembersFull.map((m: any) => (
+                  <div
+                    key={m._id}
+                    className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-slate-200"
+                  >
+                    <span className="text-sm">{m.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleTeamMemberToggle(m._id)}
+                      className="text-slate-300 hover:text-white"
+                      aria-label={`Remove ${m.name}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
+          {/* Actions */}
           <div className="flex gap-4 pt-4">
             <Button
               type="button"

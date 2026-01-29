@@ -38,7 +38,7 @@ export default function DeleteConfirmDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex gap-3">
-          <AlertDialogCancel className="border-slate-600 text-white hover:bg-slate-800">
+          <AlertDialogCancel className="border-slate-600 text-white bg-slate-800">
             Cancel
           </AlertDialogCancel>
           <Button

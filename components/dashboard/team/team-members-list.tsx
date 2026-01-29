@@ -115,12 +115,6 @@ export default function TeamMembersList({
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <button className="p-2 text-slate-400 hover:bg-slate-700 rounded transition">
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button className="p-2 text-slate-400 hover:bg-slate-700 rounded transition">
-                      <Edit className="w-4 h-4" />
-                    </button>
                     <button
                       onClick={() => {
                         if (deleteId === member._id) {
